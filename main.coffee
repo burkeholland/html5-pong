@@ -1,4 +1,10 @@
 
+GAME_STATE_SPLASH = 1
+GAME_STATE_PLAYING = 2
+GAME_STATE_LOST = 3
+game_state = GAME_STATE_SPLASH
+
+current_time = 0
 
 # get a reference to the canvas object(1)
 canvas = document.getElementById "game"
@@ -10,6 +16,18 @@ GUTTER = 20
 
 # get the canvas context(3)
 ctx = canvas.getContext "2d"
+
+# create a text object
+class Text
+
+	constructor: (@context, @text, @x, @y, @size) ->
+
+	draw: ->
+		@context.font = @size + ' bold Arial'
+		@context.fillStyle = '#20ff1b'
+		@context.fillText(@text, @x, @y)
+
+	updateText: (@text) ->
 
 # create a base sprite
 class Sprite
@@ -24,6 +42,9 @@ class Sprite
 			right: 0
 			top: 0
 			bottom: 0
+		@initial_x = @x
+		@initial_y = @y
+		@initial_speed = @speed
 
 		# create a default width/height for the sprite
 
@@ -95,15 +116,26 @@ class Ball extends Sprite
 		@velocity =
 			x: 1
 			y: 1
-	
+		@initial_velocity = @velocity
+
 		# don't forget to call super!
 		super
+
+	# reset the ball to start a new game
+	reset: ->
+		@x = @initial_x
+		@y = @initial_y
+		@speed = @initial_speed
+		@velocity.x = 1
+		@velocity.y = 1
+		game_state = GAME_STATE_PLAYING
+		current_time = 0
 
 	# create a move function that moves the ball around (20)
 	move: ->
 		@x += @speed * @velocity.x
 		@y += @speed * @velocity.y
-	
+
 	# override the draw function to check the bounds
 	draw: ->
 		# does this ball collides with anything, we need to reverse
@@ -124,6 +156,8 @@ class Ball extends Sprite
 			plop.play()
 
 		# did someone score? (23)
+		if (@x + @width) < 0
+			game_state = GAME_STATE_LOST
 
 		super
 
@@ -149,6 +183,20 @@ ball = new Ball "images/ball.png", ctx, (GAME_WIDTH / 2) - 8, (GAME_HEIGHT / 2) 
 beep = new Sound("audio/beep.ogg")
 plop = new Sound("audio/plop.ogg")
 
+pong_text = new Text ctx, 'PONG', 72, 90, '50px'
+play_text = new Text ctx, 'Tap to play', 90, 130, '20px'
+art_heading = new Text ctx, 'ART AND SOUND', 260, 130, '20px'
+art_text = new Text ctx, 'opengameart.org', 280, 155, '20px'
+programming_heading = new Text ctx, 'PROGRAMMING', 260, 210, '20px'
+programming_text1 = new Text ctx, 'Burke Holland', 280, 235, '20px'
+programming_text2 = new Text ctx, 'Kyle Davis', 280, 255, '20px'
+
+timer_text = new Text ctx, 'timer', 400, 300, '20px'
+
+you_lose_text = new Text ctx, 'GAME   OVER', 72, 90, '50px'
+reset_text = new Text ctx, 'Tap to reset', 90, 130, '20px'
+
+
 # create a draw function
 draw = ->
 
@@ -158,11 +206,25 @@ draw = ->
 
 	cpu.draw()
 
-	ball.draw()
+	if game_state is GAME_STATE_SPLASH
+		pong_text.draw()
+		play_text.draw()
+		art_heading.draw()
+		art_text.draw()
+		programming_heading.draw()
+		programming_text1.draw()
+		programming_text2.draw()
 
-	ball.move()
+	if game_state is GAME_STATE_PLAYING
+		ball.draw()
+		ball.move()
+		cpu.move(ball.y)
+		timer_text.draw()
 
-	cpu.move(ball.y)
+	if game_state is GAME_STATE_LOST
+		you_lose_text.draw()
+		reset_text.draw()
+		timer_text.draw()
 
 	# get the animation frame and loop the loop (30)
 	getAnimationFrame()(draw, canvas)
@@ -171,6 +233,12 @@ draw = ->
 setInterval(-> 
 	ball.speed += .2
 ,1000)
+
+setInterval(-> 
+	if game_state is GAME_STATE_PLAYING
+		current_time += .1
+		timer_text.updateText(current_time.toFixed(1))
+,100)
 
 # normalize request animation frame (32)
 getAnimationFrame = ->
@@ -181,7 +249,21 @@ getAnimationFrame = ->
 
 # listen for the mouse events (33)
 document.body.addEventListener 'mousemove', (event) ->
-	player.move event.y - (player.height / 2)
+	if game_state is GAME_STATE_PLAYING
+		player.move event.y - (player.height / 2)
 , false
+
+document.body.addEventListener 'click', (event) ->
+	touchOrClick()
+
+document.body.addEventListener 'touchend', (event) ->
+	touchOrClick()
+
+touchOrClick = () ->
+	if game_state is GAME_STATE_SPLASH
+		ball.reset()
+		game_state = GAME_STATE_PLAYING
+	if game_state is GAME_STATE_LOST
+		ball.reset()
 
 draw()
